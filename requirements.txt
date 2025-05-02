@@ -1,0 +1,3 @@
+cat > requirements.txt << 'EOF'
+telethon==1.*
+EOF
