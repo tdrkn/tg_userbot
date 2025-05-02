@@ -1,4 +1,4 @@
-cat > auto_reply_userbot.py << 'EOF'
+
 from telethon import TelegramClient, events
 import os, logging
 
@@ -26,4 +26,4 @@ async def on_post(event):
 with client:
     logging.info("Bot started, waiting for posts…")
     client.run_until_disconnected()
-EOF
+
