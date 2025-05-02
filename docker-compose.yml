@@ -1,4 +1,4 @@
-cat > docker-compose.yml << 'EOF'
+
 version: "3.9"
 services:
   userbot:
@@ -14,4 +14,3 @@ services:
       - session_data:/app
 volumes:
   session_data:
-EOF
