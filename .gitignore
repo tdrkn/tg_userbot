@@ -1,0 +1,4 @@
+cat > .gitignore << 'EOF'
+userbot_session.session
+session_data/
+EOF
