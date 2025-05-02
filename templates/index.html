@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Настройки Telegram-бота</title>
+  <style>
+    body { font-family: sans-serif; max-width: 500px; margin: 2em auto; }
+    input, textarea { width: 100%; padding: .5em; margin-bottom: 1em; }
+    button { padding: .5em 1em; }
+    .flash { background: #d4edda; padding: 1em; margin-bottom: 1em; border: 1px solid #c3e6cb; }
+  </style>
+</head>
+<body>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, msg in messages %}
+      <div class="flash">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+  <h1>Конфигурация бота</h1>
+  <form method="post">
+    <label>TG_API_ID</label>
+    <input name="TG_API_ID" value="{{ config.get('TG_API_ID','') }}">
+    <label>TG_API_HASH</label>
+    <input name="TG_API_HASH" value="{{ config.get('TG_API_HASH','') }}">
+    <label>TG_TARGET</label>
+    <input name="TG_TARGET" value="{{ config.get('TG_TARGET','') }}">
+    <label>TG_REPLY_TEXT</label>
+    <textarea name="TG_REPLY_TEXT">{{ config.get('TG_REPLY_TEXT','') }}</textarea>
+    <button type="submit">Сохранить и перезапустить</button>
+  </form>
+</body>
+</html>
