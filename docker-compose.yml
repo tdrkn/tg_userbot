@@ -1,0 +1,17 @@
+cat > docker-compose.yml << 'EOF'
+version: "3.9"
+services:
+  userbot:
+    build: .
+    container_name: tg_userbot
+    restart: always
+    environment:
+      TG_API_ID:   "123456"             # ← замени на свой api_id
+      TG_API_HASH: "abcdef0123456789"   # ← замени на свой api_hash
+      TG_TARGET:   "https://t.me/yourchan" 
+      TG_REPLY_TEXT: "👍 Спасибо за пост!"
+    volumes:
+      - session_data:/app
+volumes:
+  session_data:
+EOF
