@@ -1,4 +1,4 @@
-cat > Dockerfile << 'EOF'
+
 FROM python:3.12-slim
 
 # 1) копируем и ставим зависимости
@@ -11,4 +11,4 @@ WORKDIR /app
 
 # 3) по умолчанию запускаем бот
 CMD ["python", "auto_reply_userbot.py"]
-EOF
+
