@@ -1,16 +1,23 @@
-
 version: "3.9"
 services:
+  config:
+    image: python:3.12-slim
+    volumes:
+      - ./:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /app
+    command: python app.py
+    ports:
+      - "5000:5000"
+
   userbot:
-    build: .
+    build: ./
     container_name: tg_userbot
     restart: always
-    environment:
-      TG_API_ID:   "123456"             # ← замени на свой api_id
-      TG_API_HASH: "abcdef0123456789"   # ← замени на свой api_hash
-      TG_TARGET:   "https://t.me/yourchan" 
-      TG_REPLY_TEXT: "👍 Спасибо за пост!"
+    env_file:
+      - .env
     volumes:
       - session_data:/app
+
 volumes:
   session_data:
