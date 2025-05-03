@@ -1,29 +1,23 @@
-
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 import os, logging
 
-# 1) читаем настройки из переменных окружения
 API_ID   = int(os.getenv("TG_API_ID"))
 API_HASH = os.getenv("TG_API_HASH")
-TARGET   = os.getenv("TG_TARGET")       # канал вида @mychannel или ссылка
-REPLY    = os.getenv("TG_REPLY_TEXT")   # текст ответа
-SESSION  = "userbot_session"            # имя файла сессии
+TARGET   = os.getenv("TG_TARGET")        # пишем @durov чтобы свести его с ума 
+REPLY    = os.getenv("TG_REPLY_TEXT")
+SESSION  = os.getenv("TG_SESSION")       # сессия
 
-# 2) включаем простой лог
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
-# 3) создаём клиент Telethon
-client = TelegramClient(SESSION, API_ID, API_HASH)
+client = TelegramClient(StringSession(SESSION), API_ID, API_HASH)
 
-# 4) хендлер на новые сообщения в TARGET
 @client.on(events.NewMessage(chats=TARGET))
-async def on_post(event):
-    if event.is_channel and not event.is_group:
-        await event.reply(REPLY, comment_to=event.id)
-        logging.info("Replied to post %s", event.id)
+async def on_post(ev):
+    if ev.is_channel and not ev.is_group:
+        await client.send_message(ev.chat_id, REPLY, comment_to=ev.id)
+        logging.info("Replied to post %s", ev.id)
 
-# 5) запускаем бесконечный loop
 with client:
-    logging.info("Bot started, waiting for posts…")
+    logging.info("Userbot online. Waiting for posts…")
     client.run_until_disconnected()
-
