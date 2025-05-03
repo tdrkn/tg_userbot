@@ -1,3 +1,6 @@
 
-userbot_session.session
-session_data/
+.env
+venv/
+__pycache__/
+*.pyc
+.idea/            # файлы IDE
