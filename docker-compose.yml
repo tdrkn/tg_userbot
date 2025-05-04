@@ -2,18 +2,19 @@ version: "3.9"
 
 services:
   # тут будет GUI для настройки (если не станет рудиментом)
-  config:
-    image: python:3.12-slim
-    working_dir: /app
-    volumes:
-      - ./:/app
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: >
-      sh -c "pip install flask python-dotenv &&
-             python app.py"
-    ports:
-      - "127.0.0.1:5025:5025"
-    env_file: .env
+  #  ПОЗДРАВЛЯЮ CONGRATULATIONS конфиг стал рудиментом... -1контейнер
+#  config:
+#    image: python:3.12-slim
+#    working_dir: /app
+#    volumes:
+#      - ./:/app
+#      - /var/run/docker.sock:/var/run/docker.sock
+#    command: >
+#      sh -c "pip install flask python-dotenv &&
+#             python app.py"
+#    ports:
+#      - "127.0.0.1:5025:5025"
+#    env_file: .env
 
   # -----наш ботяра-слоняра-----
   userbot:
