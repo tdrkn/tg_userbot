@@ -4,3 +4,4 @@ venv/
 __pycache__/
 *.pyc
 .idea/            # файлы IDE
+channels.csv
