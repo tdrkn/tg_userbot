@@ -1,3 +1,5 @@
 telethon==1.*
 flask
-python-dotenv        # чтобы не городить парсинг .env вручную
+python-dotenv
+google-genai==0.2.*
+
