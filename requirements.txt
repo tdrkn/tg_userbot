@@ -2,4 +2,4 @@ telethon==1.*
 flask
 python-dotenv
 google-genai==0.2.*
-
+aiofiles
