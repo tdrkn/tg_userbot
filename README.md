@@ -29,7 +29,7 @@ docker compose up -d --build
 
 ---
 
-## Конфигурация через `.env`
+## Конфигурация через `env.env`
 
 ```env
 # Telegram API
