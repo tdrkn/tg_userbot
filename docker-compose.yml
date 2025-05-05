@@ -7,6 +7,7 @@ services:
     env_file: env.env
     volumes:
       - session_data:/app
+      - ./channels.csv:/app/channels.csv
 
 volumes:
   session_data:
