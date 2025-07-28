@@ -4,10 +4,6 @@ services:
   userbot:
     build: .
     restart: always
-    env_file: env.env
+    env_file: .env
     volumes:
-      - session_data:/app
       - ./channels.csv:/app/channels.csv
-
-volumes:
-  session_data:

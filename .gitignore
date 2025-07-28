@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 .idea/            # файлы IDE
 channels.csv
+*.session
+*.session-journal

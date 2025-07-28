@@ -1,5 +1,5 @@
-telethon==1.*
-flask
+telethon
 python-dotenv
-google-genai==0.2.*
+google-generativeai
 aiofiles
+
