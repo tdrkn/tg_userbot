@@ -2,4 +2,4 @@ telethon
 python-dotenv
 google-generativeai
 aiofiles
-
+Pillow

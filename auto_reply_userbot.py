@@ -23,9 +23,13 @@ SESSION  = os.environ["TG_SESSION"]
 GEMINI_KEY   = os.getenv("GEMINI_KEY")
 MODEL_NAME   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")   # flash 2.0
 PROMPT_TPL   = os.getenv("GEMINI_PROMPT", "{text}")
+PROMPT_IMAGE_TPL = os.getenv("GEMINI_PROMPT_IMAGE", "Опиши это изображение и прокомментируй его.")
 FALLBACK     = os.getenv("TG_REPLY_TEXT", "🤖 …")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+
+# Set to keep track of processed album IDs to avoid duplicate replies
+processed_albums = set()
 
 # ── Gemini init ───────────────────────────────────────
 gemini_model = None
@@ -37,23 +41,44 @@ else:
     logging.warning("GEMINI_KEY is not set. AI features will be disabled.")
 # ------------------------------------------------------
 
-async def smart_reply(post_text: str) -> str:
+async def smart_reply(post_text: str, prompt_template: str, image_data: bytes = None, image_mime: str = None) -> str:
     if not gemini_model:
         logging.warning("Attempted to use smart_reply, but Gemini model is not initialized (check GEMINI_KEY).")
         return FALLBACK
-    # Do not reply to empty messages or media without text
-    if not post_text:
-        logging.info("Post has no text, skipping reply.")
-        return "" # Return empty string to signify no reply
 
-    prompt = PROMPT_TPL.replace("{text}", post_text[:2000])
+    # Create content parts
+    content_parts = []
+
+    # Add image if provided
+    if image_data and image_mime:
+        import PIL.Image
+        import io
+
+        # Convert bytes to PIL Image for google-generativeai
+        image = PIL.Image.open(io.BytesIO(image_data))
+        content_parts.append(image)
+        logging.info("📷 Added image to prompt (size: %d bytes, type: %s)", len(image_data), image_mime)
+
+    # Add text prompt
+    if post_text:
+        prompt = prompt_template.replace("{text}", post_text[:2000])
+    else:
+        # If no text but image exists, use a special prompt for image-only posts
+        prompt = PROMPT_IMAGE_TPL if image_data else ""
+
+    if not prompt and not image_data:
+        logging.info("Post has no text or image, skipping reply.")
+        return ""
+
+    content_parts.append(prompt)
+
     logging.info("➡️ Sending prompt to Gemini: \"%s...\"", prompt[:100])
 
     try:
-        # Use the async version of the API
-        resp = await gemini_model.generate_content_async(prompt)
+        # Use the generate_content method with content parts
+        resp = await gemini_model.generate_content_async(content_parts)
 
-        # Log safety feedback from Gemini, which is a common reason for empty responses
+        # Log safety feedback from Gemini
         if resp.prompt_feedback.block_reason:
             logging.warning("Gemini prompt was blocked. Reason: %s", resp.prompt_feedback.block_reason.name)
             return FALLBACK
@@ -62,13 +87,44 @@ async def smart_reply(post_text: str) -> str:
             logging.warning("Gemini response is empty (no parts). Full feedback: %s", resp.prompt_feedback)
             return FALLBACK
 
-        # Normalize whitespace: replace multiple spaces/newlines with a single space
+        # Normalize whitespace
         clean_text = ' '.join(resp.text.split())
         logging.info("⬅️ Received response from Gemini: \"%s...\"", clean_text[:50])
         return clean_text
     except Exception as e:
         logging.error("An unexpected error occurred with Gemini API: %s", e, exc_info=True)
         return FALLBACK
+
+async def extract_image_from_message(message) -> tuple[bytes, str]:
+    """
+    Extract image data from a Telegram message.
+    Returns (image_bytes, mime_type) or (None, None) if no image found.
+    """
+    try:
+        if not message.photo:
+            return None, None
+
+        # Download the photo to memory
+        image_bytes = await message.download_media(file=bytes)
+
+        if not image_bytes:
+            return None, None
+
+        # Determine MIME type based on file size and common formats
+        # Most Telegram photos are JPEG
+        mime_type = "image/jpeg"
+
+        # Check file size limit (Gemini has 20MB limit for entire request)
+        if len(image_bytes) > 15 * 1024 * 1024:  # 15MB to be safe
+            logging.warning("Image too large (%d bytes), skipping", len(image_bytes))
+            return None, None
+
+        logging.info("📥 Downloaded image: %d bytes", len(image_bytes))
+        return image_bytes, mime_type
+
+    except Exception as e:
+        logging.warning("Failed to extract image from message: %s", e)
+        return None, None
 
 async def test_gemini():
     if not gemini_model:
@@ -217,31 +273,59 @@ async def main():
         if ev.date < start_time:
             return
 
-        # logging.info("⚡ Got message in chat: %s (%s) — text: %r", getattr(ev.chat, 'title', 'unknown'), ev.chat_id, ev.text)
-        # logging.info("🔍 Current tracked_ids: %s", tracked_ids)
+        # --- Album Handling ---
+        album_id = ev.grouped_id
+        if album_id:
+            if album_id in processed_albums:
+                # If we are already processing this album, ignore the message.
+                logging.info("Ignoring duplicate message from album ID: %s", album_id)
+                return
+            # If it's a new album, mark it as being processed.
+            processed_albums.add(album_id)
+            logging.info("Processing new album with ID: %s", album_id)
 
-        if ev.is_channel and ev.chat.id in tracked_ids:
-            logging.info("✅ Matched post in channel: %s. Text: \"%s...\"", ev.chat.title, (ev.text or "")[:50])
-            answer = ""
-            try:
-                answer = await asyncio.wait_for(smart_reply(ev.text or ""), timeout=30)
-            except asyncio.TimeoutError:
-                logging.warning("Gemini response timed out after 30s. Sending fallback.")
-                answer = FALLBACK
+        try:
+            if ev.is_channel and ev.chat.id in tracked_ids:
+                logging.info("✅ Matched post in channel: %s. Text: \"%s...\"", ev.chat.title, (ev.text or "")[:50])
+                answer = ""
+                try:
+                    # Extract image if present
+                    image_data, image_mime = await extract_image_from_message(ev.message)
 
-            if answer: # Only reply if smart_reply returned a non-empty string
-                # Human-like delay before sending the reply to avoid flood waits
-                delay = random.uniform(5, 10)
-                logging.info("Waiting for %.1f seconds before replying...", delay)
-                await asyncio.sleep(delay)
+                    # If no image and no text, skip. This is important for albums where text might be on a different part.
+                    # The current logic handles the first event, which is usually sufficient.
+                    if not image_data and not ev.text:
+                        logging.info("No text or image found in this part of the post, skipping reply.")
+                        return
 
-                await clientTG.send_message(ev.chat_id, answer, comment_to=ev.id)
-                logging.info("💬 Replied in %s to message %s", ev.chat.title, ev.id)
-            else:
-                logging.info("📝 Post did not generate a reply, skipped.")
-        else:
-            # logging.info("⛔ Ignored message from: %s (%s)", getattr(ev.chat, 'title', 'unknown'), ev.chat_id)
-            pass
+                    # Generate reply with smart_reply
+                    answer = await asyncio.wait_for(smart_reply(ev.text or "", PROMPT_TPL, image_data, image_mime), timeout=30)
+                except asyncio.TimeoutError:
+                    logging.warning("Gemini response timed out after 30s. Sending fallback.")
+                    answer = FALLBACK
+
+                if answer: # Only reply if smart_reply returned a non-empty string
+                    # Human-like delay before sending the reply to avoid flood waits
+                    delay = random.uniform(5, 10)
+                    logging.info("Waiting for %.1f seconds before replying...", delay)
+                    await asyncio.sleep(delay)
+
+                    await clientTG.send_message(
+                        ev.chat_id,
+                        answer,
+                        comment_to=ev.id
+                    )
+                    logging.info("💬 Replied in %s to message %s", ev.chat.title, ev.id)
+                else:
+                    logging.info("📝 Post did not generate a reply, skipped.")
+        finally:
+            # Clean up the album ID from the set after a short delay.
+            # This ensures all parts of an album have arrived and been ignored.
+            if album_id:
+                await asyncio.sleep(5) # 5 seconds should be enough
+                if album_id in processed_albums:
+                    processed_albums.remove(album_id)
+                    logging.info("Cleaned up album ID: %s", album_id)
 
     logging.info("Userbot ONLINE (Gemini‑Flash)…")
     await clientTG.run_until_disconnected()
