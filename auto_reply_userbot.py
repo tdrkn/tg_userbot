@@ -25,6 +25,7 @@ MODEL_NAME   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")   # flash 2.0
 PROMPT_TPL   = os.getenv("GEMINI_PROMPT", "{text}")
 PROMPT_IMAGE_TPL = os.getenv("GEMINI_PROMPT_IMAGE", "Опиши это изображение и прокомментируй его.")
 FALLBACK     = os.getenv("TG_REPLY_TEXT", "🤖 …")
+REPLY_CHANCE = float(os.getenv("REPLY_CHANCE", "1.0"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
@@ -61,7 +62,11 @@ async def smart_reply(post_text: str, prompt_template: str, image_data: bytes = 
 
     # Add text prompt
     if post_text:
-        prompt = prompt_template.replace("{text}", post_text[:2000])
+        # If there's an image, combine the image prompt with the text prompt
+        if image_data:
+            prompt = f"{PROMPT_IMAGE_TPL}\n\n{prompt_template.replace('{text}', post_text[:2000])}"
+        else:
+            prompt = prompt_template.replace("{text}", post_text[:2000])
     else:
         # If no text but image exists, use a special prompt for image-only posts
         prompt = PROMPT_IMAGE_TPL if image_data else ""
@@ -286,6 +291,11 @@ async def main():
 
         try:
             if ev.is_channel and ev.chat.id in tracked_ids:
+                # Decide whether to reply based on REPLY_CHANCE
+                if random.random() > REPLY_CHANCE:
+                    logging.info("🎲 Skipped reply due to REPLY_CHANCE (%.2f)", REPLY_CHANCE)
+                    return
+
                 logging.info("✅ Matched post in channel: %s. Text: \"%s...\"", ev.chat.title, (ev.text or "")[:50])
                 answer = ""
                 try:
