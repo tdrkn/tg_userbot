@@ -23,7 +23,7 @@ SESSION  = os.environ["TG_SESSION"]
 GEMINI_KEY   = os.getenv("GEMINI_KEY")
 MODEL_NAME   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")   # flash 2.0
 PROMPT_TPL   = os.getenv("GEMINI_PROMPT", "{text}")
-PROMPT_IMAGE_TPL = os.getenv("GEMINI_PROMPT_IMAGE", "Опиши это изображение и прокомментируй его.")
+PROMPT_IMAGE_TPL = os.getenv("GEMINI_PROMPT_IMAGE", "Прореагируй на это изображение естественно, как живой человек.")
 FALLBACK     = os.getenv("TG_REPLY_TEXT", "🤖 …")
 REPLY_CHANCE = float(os.getenv("REPLY_CHANCE", "1.0"))
 
@@ -62,11 +62,8 @@ async def smart_reply(post_text: str, prompt_template: str, image_data: bytes = 
 
     # Add text prompt
     if post_text:
-        # If there's an image, combine the image prompt with the text prompt
-        if image_data:
-            prompt = f"{PROMPT_IMAGE_TPL}\n\n{prompt_template.replace('{text}', post_text[:2000])}"
-        else:
-            prompt = prompt_template.replace("{text}", post_text[:2000])
+        # If there's an image, just use the normal prompt template - the AI will see both image and text
+        prompt = prompt_template.replace("{text}", post_text[:2000])
     else:
         # If no text but image exists, use a special prompt for image-only posts
         prompt = PROMPT_IMAGE_TPL if image_data else ""
