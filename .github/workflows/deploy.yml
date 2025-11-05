@@ -1,0 +1,51 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ${{ secrets.SERVER_PATH }}
+            git pull origin main
+            docker-compose up -d --build
+      - name: Send Telegram Notification on Success
+        if: success()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
+          message: |
+            ✅ *Deployment Successful*
+
+            Repository: `${{ github.repository }}`
+            Branch: `${{ github.ref_name }}`
+            Commit: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+
+            The new version has been deployed to the server.
+
+      - name: Send Telegram Notification on Failure
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
+          message: |
+            ❌ *Deployment Failed*
+
+            Repository: `${{ github.repository }}`
+            Branch: `${{ github.ref_name }}`
+            Commit: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            
+            Please check the GitHub Actions logs for details.

@@ -1,5 +1,5 @@
 telethon
-python-dotenv
 google-generativeai
+python-dotenv
 aiofiles
 Pillow

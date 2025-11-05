@@ -1,4 +1,6 @@
-# AI-автоответчик в каналах 
+# AI-автоответчик в каналах
+
+[![Deploy to Server](https://github.com/tdrkn/tg_userbot/actions/workflows/deploy.yml/badge.svg)](https://github.com/tdrkn/tg_userbot/actions/workflows/deploy.yml)
 
 **Однажды меня спросили: "_Даня, почему ты не читаешь каналы_". Я устал оправдываться, что у меня мало времени, и решил создать данного бота.**
 
