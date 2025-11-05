@@ -75,13 +75,13 @@ docs/_build/
 # PyBuilder
 target/
 
-# Jupyter Notebook
+# Jupyter Notebok
 .ipynb_checkpoints
-
+bot.log
 # IPython
 profile_default/
 ipython_config.py
-
+channels.csv
 # pyenv
 .python-version
 
@@ -113,7 +113,7 @@ venv.bak
 .spyproject
 
 # Rope project settings
-.ropeproject
+.ropeproject/
 
 # PyCharm files
 .idea/
@@ -123,6 +123,7 @@ venv.bak
 
 # VSCode
 .vscode/
+.vscode/settings.json
 
 # Sublime Text
 *.sublime-workspace
@@ -130,3 +131,18 @@ venv.bak
 
 # macOS
 .DS_Store
+
+# mypy
+.mypy_cache/
+.dmypy.json
+darglint.json
+
+# pyright
+.pyright/
+
+# Pytest
+pytestdebug.log
+
+# Backup files
+*.bak
+channels.csv.bak

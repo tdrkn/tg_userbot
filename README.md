@@ -31,6 +31,24 @@ docker compose up -d --build
 
 ---
 
+## Локальное тестирование
+
+Для быстрой проверки работы AI-генерации ответов без необходимости деплоить бота в Telegram, вы можете запустить локальное GUI-приложение.
+
+1.  **Установите зависимости:**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+2.  **Запустите тестовое приложение:**
+    ```bash
+    python test_app.py
+    ```
+
+3.  Откроется окно, где можно ввести текст поста, прикрепить изображение и получить ответ от Gemini.
+
+---
+
 ## Конфигурация через `.env`
 
 ```env
@@ -44,8 +62,6 @@ GEMINI_KEY="AIzaSy…"
 GEMINI_MODEL="gemini-2.0-flash"
 # Промпт для комментария к посту: {text} → текст поста
 GEMINI_PROMPT="Комментарий к посту: «{text}»"
-# Промпт для ответа на комментарий: {text} → текст ответа собеседника
-GEMINI_PROMPT_REPLY="Ответ на сообщение: «{text}»"
 
 # Заглушка, если AI-сервис недоступен
 TG_REPLY_TEXT="🤖 …"
@@ -73,15 +89,31 @@ https://t.me/joinchat/AAAAA...
 
 ## Зависимости
 
-- Python ≥ 3.10  
+- Python ≥ 3.10
 - `telethon` ≥ 1.27  
 - `google-genai` ≥ 0.2  
 - Docker & Docker Compose  
 
 ---
 
+## Project structure
+
+- tg_userbot/
+  - config.py — environment config (.env)
+  - logging_setup.py — logging configuration
+  - ai.py — Gemini client init, prompts, smart_reply
+  - telegram_utils.py — helpers: join channels, image extract, CSV, delays
+  - main.py — bot runner (async run())
+- auto_reply_userbot.py — thin wrapper calling tg_userbot.main.run()
+- Dockerfile, docker-compose.yml — containerization
+- channels.csv — channels to track (mounted in docker-compose)
+
+Entry point remains the same in Docker: the wrapper script runs the modular bot.
+
+---
+
 ## Лицензия
 
-MIT License © 2025 [Danil Rastyapin]  
+MIT License © 2024 [Danil Rastyapin]
 
 ---
