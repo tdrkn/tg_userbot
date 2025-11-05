@@ -3,6 +3,7 @@ version: "3.9"
 services:
   userbot:
     build: .
+    container_name: tg_userbot
     restart: always
     env_file: .env
     volumes:

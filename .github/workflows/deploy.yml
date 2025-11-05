@@ -17,7 +17,8 @@ jobs:
           script: |
             cd ${{ secrets.SERVER_PATH }}
             git pull origin main
-            docker-compose up -d --build
+            docker compose down
+            docker compose up -d --build
       - name: Send Telegram Notification on Success
         if: success()
         uses: appleboy/telegram-action@master
