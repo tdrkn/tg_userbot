@@ -6,6 +6,8 @@ __pycache__/
 # C extensions
 *.so
 
+
+
 # Distribution / packaging
 .Python
 build/
@@ -120,6 +122,8 @@ venv.bak
 .project
 .pydevproject
 .settings/
+*.iml
+*.iws
 
 # VSCode
 .vscode/
@@ -131,6 +135,9 @@ venv.bak
 
 # macOS
 .DS_Store
+.idea/
+*.iml
+*.iws
 
 # mypy
 .mypy_cache/
