@@ -6,7 +6,7 @@ load_dotenv()
 
 # Environment variables
 GEMINI_KEY = os.getenv("GEMINI_KEY")
-GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 PROMPT_TPL = os.getenv("GEMINI_PROMPT", "Напиши комментарий к этому посту: «{text}»")
 # Support both names for image-only prompt
 PROMPT_IMAGE_ONLY = os.getenv("GEMINI_PROMPT_IMAGE") or os.getenv("PROMPT_IMAGE_TPL") or "Напиши короткий комментарий к этому изображению, не описывая его."
