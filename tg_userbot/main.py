@@ -97,20 +97,24 @@ async def run():
 
     # 2. Vibe Updater
     async def vibe_updater():
+        # Allow some time for startup and channel joining
+        await asyncio.sleep(30)
+
         while True:
-            # Check a few channels every hour or so, spread out load?
-            # Or just loop through all tracked channels every hour and check 'should_update'
-            await asyncio.sleep(3600 * 4) # Check every 4 hours
             logger.info("Running periodic vibe update check...")
             current_ids = list(tracked_ids)
+
             for cid in current_ids:
                 if vibe_manager.should_update(cid):
                     logger.info("Updating vibe for channel %s...", cid)
                     try:
-                        # Fetch last 50-100 messages
+                        # Fetch last 75 messages. msg[0] is newest.
                         history = await clientTG.get_messages(cid, limit=75)
                         text_corpus = ""
-                        for h in history:
+
+                        # Process in reverse to maintain chronological order (oldest -> newest)
+                        # which helps the AI understand the flow better.
+                        for h in reversed(history):
                             if h.text:
                                 text_corpus += f"- {h.text}\n"
 
@@ -127,7 +131,11 @@ async def run():
                     except Exception as e:
                         logger.error("Failed to update vibe for %s: %s", cid, e)
 
-                    await asyncio.sleep(60) # Pause between updates
+                    # Sleep a bit between channel updates to be gentle
+                    await asyncio.sleep(20)
+
+            logger.info("Vibe check cycle finished. Sleeping for 4 hours.")
+            await asyncio.sleep(3600 * 4)
 
     asyncio.create_task(refresher())
     asyncio.create_task(vibe_updater())

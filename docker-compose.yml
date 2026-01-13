@@ -8,3 +8,5 @@ services:
     env_file: .env
     volumes:
       - ./channels.csv:/app/channels.csv
+      - ./channel_vibes.json:/app/channel_vibes.json
+      - ./bot.log:/app/bot.log
