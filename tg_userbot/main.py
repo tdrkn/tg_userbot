@@ -133,7 +133,7 @@ async def run():
                         if attempt < 2:
                             await asyncio.sleep(2)
                         else:
-                            logger.error("Gemini failed after 3 attempts. Skipping reply.")
+                            logger.error("Gemini Error: Did not receive an answer after 3 attempts. Error: %s", e)
                             answer = ""
 
                 if answer:
@@ -141,7 +141,7 @@ async def run():
                     await clientTG.send_message(ev.chat_id, answer, comment_to=ev.id)
                     logger.info("Replied in %s to message %s", getattr(ev.chat, 'title', None), ev.id)
                 else:
-                    logger.info("Post did not generate a reply, skipped.")
+                    logger.info("Post did not generate a reply (empty response or error), skipping.")
         finally:
             if album_id:
                 await asyncio.sleep(5)

@@ -14,13 +14,24 @@ async def extract_image_from_message(message) -> tuple[Optional[bytes], Optional
     try:
         if not getattr(message, 'photo', None):
             return None, None
+
+        # Check size before downloading
+        # 15 MB limit
+        limit = 15 * 1024 * 1024
+        if message.file and message.file.size and message.file.size > limit:
+            logger.warning("Image too large (%d bytes), skipping download", message.file.size)
+            return None, None
+
         image_bytes = await message.download_media(file=bytes)
         if not image_bytes:
             return None, None
+
+        # Double check actual size (though file.size usually covers it)
+        if len(image_bytes) > limit:
+             logger.warning("Downloaded image too large (%d bytes), skipping", len(image_bytes))
+             return None, None
+
         mime_type = "image/jpeg"
-        if len(image_bytes) > 15 * 1024 * 1024:
-            logger.warning("Image too large (%d bytes), skipping", len(image_bytes))
-            return None, None
         logger.info("Downloaded image: %d bytes", len(image_bytes))
         return image_bytes, mime_type
     except Exception as e:
