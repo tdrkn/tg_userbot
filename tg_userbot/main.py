@@ -136,47 +136,53 @@ async def run():
 
     async def process_batch(chat_id: int):
         """Processes a gathered batch of messages for a specific channel."""
-        batch = msg_buffer.get_and_clear(chat_id)
-        if not batch:
-            return
+        try:
+            batch = msg_buffer.get_and_clear(chat_id)
+            if not batch:
+                return
 
-        logger.info("Processing batch of %d messages for chat %d", len(batch), chat_id)
+            logger.info("Processing batch of %d messages for chat %d", len(batch), chat_id)
 
-        # Get channel vibe
-        vibe = vibe_manager.get_vibe(chat_id)
+            # Get channel vibe
+            vibe = vibe_manager.get_vibe(chat_id)
 
-        # Logic to decide which message to reply to.
-        # User implies replying to the "last" message but considering the context of all.
-        last_msg_item = batch[-1]
-        last_msg_id = last_msg_item['id']
+            # Logic to decide which message to reply to.
+            last_msg_item = batch[-1]
+            last_msg_id = last_msg_item['id']
 
-        answer = ""
-        # Retry logic for Gemini
-        for attempt in range(3):
-            try:
-                # smart_reply now takes the batch list
-                answer = await asyncio.wait_for(
-                    smart_reply(batch, vibe_context=vibe),
-                    timeout=45 # Slightly longer timeout for batch processing
-                )
-                break
-            except Exception as e:
-                logger.warning("Gemini batch attempt %d failed: %s", attempt + 1, e)
-                if attempt < 2:
-                    await asyncio.sleep(2)
-                else:
-                    logger.error("Gemini Error: Did not receive an answer after 3 attempts. Error: %s", e)
-                    answer = ""
+            answer = ""
+            # Retry logic for Gemini
+            for attempt in range(3):
+                try:
+                    logger.info("Gemini generation attempt %d/3...", attempt + 1)
+                    # smart_reply now takes the batch list
+                    answer = await asyncio.wait_for(
+                        smart_reply(batch, vibe_context=vibe),
+                        timeout=45 # Slightly longer timeout for batch processing
+                    )
+                    logger.info("Gemini attempt %d finished. Result len: %d", attempt + 1, len(answer))
+                    break
+                except asyncio.TimeoutError:
+                    logger.warning("Gemini attempt %d timed out (45s).", attempt + 1)
+                except Exception as e:
+                    logger.warning("Gemini batch attempt %d failed with error: %s", attempt + 1, e)
+                    if attempt < 2:
+                        await asyncio.sleep(2)
+                    else:
+                        logger.error("Gemini Error: Did not receive an answer after 3 attempts. Last error: %s", e)
+                        answer = ""
 
-        if answer:
-            await human_delay(5, 10)
-            try:
-                await clientTG.send_message(chat_id, answer, comment_to=last_msg_id)
-                logger.info("Replied in %s to batch (last msg %s)", chat_id, last_msg_id)
-            except Exception as e:
-                logger.error("Failed to send reply to %s: %s", chat_id, e)
-        else:
-            logger.info("Batch did not generate a reply.")
+            if answer:
+                await human_delay(5, 10)
+                try:
+                    await clientTG.send_message(chat_id, answer, comment_to=last_msg_id)
+                    logger.info("Replied in %s to batch (last msg %s)", chat_id, last_msg_id)
+                except Exception as e:
+                    logger.error("Failed to send reply to %s: %s", chat_id, e)
+            else:
+                logger.info("Batch did not generate a reply (empty result or error).")
+        except Exception as e:
+            logger.error("CRITICAL ERROR in process_batch for chat %s: %s", chat_id, e, exc_info=True)
 
 
     @clientTG.on(events.NewMessage())

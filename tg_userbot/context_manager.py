@@ -82,7 +82,10 @@ class MessageBuffer:
     def get_and_clear(self, channel_id: int):
         data = self.buffers.get(channel_id, [])
         self.buffers[channel_id] = []
-        self.cancel_timer(channel_id)
+        # Do NOT cancel the timer here.
+        # If this is called by the timer task itself, cancelling causes suicide (CancelledError).
+        # If this is called manually, the timer will eventually wake up, see empty buffer, and exit.
+        # If a new message comes, set_timer will cancel the old timer correctly.
         return data
 
     def cancel_timer(self, channel_id: int):
