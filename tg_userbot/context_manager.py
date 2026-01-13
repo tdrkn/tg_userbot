@@ -42,21 +42,7 @@ class VibeManager:
         if not data:
             return True
         last_updated = data.get("last_updated", 0)
-        # Random interval between 5 and 8 days (in seconds)
-        # We can't be truly random every time we check, otherwise we might check 1s after update and get "False",
-        # then check again and get "True" if we re-roll the random interval.
-        # Instead, we check if elapsed time > stored_threshold or just strict 5 days minimum.
-        # User said: "periodicity random once every 5-8 days".
-        # Let's say we update if it's been more than 8 days for sure,
-        # or if it's between 5-8 days we roll a small chance?
-        # Simpler: just check if > 5 days + random offset determined at check time?
-        # Or better: check if > 8 days.
-        # Actually user said "absolute random in range 5-8 days".
-        # Let's just use 5 days for now to ensure we get *some* data, and then we can randomize the *next* check.
-        # But for strictly following the rule:
-        # We can store 'next_update_at' instead of just 'last_updated'.
-
-        # For legacy/simple approach: check if > 5 days.
+        # Update if more than 8 days have passed, or with 10% probability if between 5 and 8 days.
         days_passed = (time.time() - last_updated) / 86400
         return days_passed > 8 or (days_passed > 5 and random.random() < 0.1)
 
