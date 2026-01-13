@@ -59,33 +59,28 @@ async def test_gemini():
 async def smart_reply(post_text: str,
                       image_data: bytes | None = None,
                       image_mime: str | None = None) -> str:
-    """Generate a reply using Gemini. Falls back to config.FALLBACK on issues."""
+    """Generate a reply using Gemini."""
     if not _model:
         logger.warning("smart_reply called but Gemini model is not available.")
-        return config.FALLBACK
+        return ""
 
-    try:
-        # Use image-only prompt if an image is present without text
-        if image_data and not post_text:
-            prompt = config.PROMPT_IMAGE_ONLY
-        else:
-            prompt = config.PROMPT_TPL.format(text=post_text)
+    # Use image-only prompt if an image is present without text
+    if image_data and not post_text:
+        prompt = config.PROMPT_IMAGE_ONLY
+    else:
+        prompt = config.PROMPT_TPL.format(text=post_text)
 
-        content = [prompt]
-        if image_data and image_mime:
-            content.append({"mime_type": image_mime, "data": image_data})
+    content = [prompt]
+    if image_data and image_mime:
+        content.append({"mime_type": image_mime, "data": image_data})
 
-        response = await _model.generate_content_async(
-            content,
-            safety_settings=SAFETY_SETTINGS
-        )
+    response = await _model.generate_content_async(
+        content,
+        safety_settings=SAFETY_SETTINGS
+    )
 
-        if not getattr(response, 'parts', None):
-            logger.warning("Gemini response was empty or blocked by safety filters.")
-            return config.FALLBACK
+    if not getattr(response, 'parts', None):
+        logger.warning("Gemini response was empty or blocked by safety filters.")
+        return ""
 
-        return (response.text or "").strip() or config.FALLBACK
-
-    except Exception as e:
-        logger.error("Error during Gemini API call for model '%s': %s", config.GEMINI_MODEL_NAME, e, exc_info=True)
-        return config.FALLBACK
+    return (response.text or "").strip()

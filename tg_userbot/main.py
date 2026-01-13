@@ -109,19 +109,32 @@ async def run():
             if ev.is_channel and ev.chat.id in tracked_ids:
                 logger.info("Matched post in channel: %s. Text: \"%s...\"", getattr(ev.chat, 'title', None), (ev.text or '')[:50])
                 answer = ""
+                # Attempt to retrieve image
                 try:
                     image_data, image_mime = await extract_image_from_message(ev.message)
-                    if not image_data and not ev.text:
-                        logger.info("No text or image found in this part of the post, skipping reply.")
-                        return
-                    answer = await asyncio.wait_for(
-                        smart_reply(ev.text or "", image_data, image_mime),
-                        timeout=30
-                    )
-                except asyncio.TimeoutError:
-                    logger.warning("Gemini response timed out after 30s. Sending fallback.")
-                    from . import config as cfg
-                    answer = cfg.FALLBACK
+                except Exception as e:
+                    logger.warning("Image extraction failed: %s", e)
+                    image_data, image_mime = None, None
+
+                if not image_data and not ev.text:
+                    logger.info("No text or image found in this part of the post, skipping reply.")
+                    return
+
+                # Retry logic for Gemini
+                for attempt in range(3):
+                    try:
+                        answer = await asyncio.wait_for(
+                            smart_reply(ev.text or "", image_data, image_mime),
+                            timeout=30
+                        )
+                        break
+                    except Exception as e:
+                        logger.warning("Gemini attempt %d failed: %s", attempt + 1, e)
+                        if attempt < 2:
+                            await asyncio.sleep(2)
+                        else:
+                            logger.error("Gemini failed after 3 attempts. Skipping reply.")
+                            answer = ""
 
                 if answer:
                     await human_delay(5, 10)
