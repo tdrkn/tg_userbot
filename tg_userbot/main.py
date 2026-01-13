@@ -74,7 +74,7 @@ async def run():
         nonlocal target_to_id, tracked_ids
         while True:
             await asyncio.sleep(300)
-            logger.info("Refreshing channel list from CSV...")
+            logger.debug("Refreshing channel list from CSV...")  # Changed from INFO to DEBUG
             csv_targets = await load_targets_from_csv(config.CHANNELS_CSV)
             if not csv_targets:
                 logger.warning("CSV is empty or could not be read. No changes to tracked channels.")
@@ -210,7 +210,7 @@ async def run():
         # essentially the buffer ACTS as the album grouper + debounce.
 
         if ev.is_channel and ev.chat.id in tracked_ids:
-            logger.info("Received post in channel %s: %s", ev.chat_id, ev.id)
+            logger.debug("Received post in channel %s: %s", ev.chat_id, ev.id)
 
             # Extract data
             try:
