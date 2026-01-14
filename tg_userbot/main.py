@@ -7,13 +7,14 @@ from telethon.sessions import StringSession
 
 from . import config
 from .logging_setup import setup_logging
-from .ai import init_gemini, test_gemini, smart_reply
+from .ai import init_gemini, test_gemini, smart_reply, generate_vibe_summary
 from .telegram_utils import (
     extract_image_from_message,
     ensure_join,
     load_targets_from_csv,
     human_delay,
 )
+from .context_manager import VibeManager, MessageBuffer
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,12 @@ async def run():
     # Test Gemini connection on startup
     await test_gemini()
 
+    # Initialize Context Managers
+    vibe_manager = VibeManager(config.VIBE_FILE)
+    await vibe_manager.load()
+
+    msg_buffer = MessageBuffer()
+
     # Map of target string to entity ID
     target_to_id: Dict[str, int] = {}
 
@@ -60,12 +67,14 @@ async def run():
     logger.info("Initial channel setup complete.")
     tracked_ids: Set[int] = set(target_to_id.values())
 
-    # Background task: refresh channels every 5 minutes
+    # --- Background Tasks ---
+
+    # 1. Channel List Refresher
     async def refresher():
         nonlocal target_to_id, tracked_ids
         while True:
             await asyncio.sleep(300)
-            logger.info("Refreshing channel list from CSV...")
+            logger.debug("Refreshing channel list from CSV...")  # Changed from INFO to DEBUG
             csv_targets = await load_targets_from_csv(config.CHANNELS_CSV)
             if not csv_targets:
                 logger.warning("CSV is empty or could not be read. No changes to tracked channels.")
@@ -86,9 +95,103 @@ async def run():
                 logger.info("Stopped tracking channel: %s", t)
             tracked_ids = set(target_to_id.values())
 
+    # 2. Vibe Updater
+    async def vibe_updater():
+        # Allow some time for startup and channel joining
+        await asyncio.sleep(30)
+
+        while True:
+            logger.info("Running periodic vibe update check...")
+            current_ids = list(tracked_ids)
+
+            for cid in current_ids:
+                if vibe_manager.should_update(cid):
+                    logger.info("Updating vibe for channel %s...", cid)
+                    try:
+                        # Fetch last 75 messages. msg[0] is newest.
+                        history = await clientTG.get_messages(cid, limit=75)
+                        text_corpus = ""
+
+                        # Process in reverse to maintain chronological order (oldest -> newest)
+                        # which helps the AI understand the flow better.
+                        for h in reversed(history):
+                            if h.text:
+                                text_corpus += f"- {h.text}\n"
+
+                        if len(text_corpus) > 100:
+                            summary = await generate_vibe_summary(text_corpus[:30000]) # Limit chars
+                            if summary:
+                                await vibe_manager.update_vibe(cid, summary)
+                                logger.info("Vibe updated for %s: %s", cid, summary[:50])
+                            else:
+                                logger.warning("Empty vibe summary generated for %s", cid)
+                        else:
+                            logger.info("Not enough text history for %s to generate vibe.", cid)
+
+                    except Exception as e:
+                        logger.error("Failed to update vibe for %s: %s", cid, e)
+
+                    # Sleep a bit between channel updates to be gentle
+                    await asyncio.sleep(20)
+
+            logger.info("Vibe check cycle finished. Sleeping for 4 hours.")
+            await asyncio.sleep(3600 * 4)
+
     asyncio.create_task(refresher())
+    asyncio.create_task(vibe_updater())
 
     processed_albums: Set[int] = set()
+
+    async def process_batch(chat_id: int):
+        """Processes a gathered batch of messages for a specific channel."""
+        try:
+            batch = msg_buffer.get_and_clear(chat_id)
+            if not batch:
+                return
+
+            logger.info("Processing batch of %d messages for chat %d", len(batch), chat_id)
+
+            # Get channel vibe
+            vibe = vibe_manager.get_vibe(chat_id)
+
+            # Logic to decide which message to reply to.
+            last_msg_item = batch[-1]
+            last_msg_id = last_msg_item['id']
+
+            answer = ""
+            # Retry logic for Gemini
+            for attempt in range(3):
+                try:
+                    logger.info("Gemini generation attempt %d/3...", attempt + 1)
+                    # smart_reply now takes the batch list
+                    answer = await asyncio.wait_for(
+                        smart_reply(batch, vibe_context=vibe),
+                        timeout=45 # Slightly longer timeout for batch processing
+                    )
+                    logger.info("Gemini attempt %d finished. Result len: %d", attempt + 1, len(answer))
+                    break
+                except asyncio.TimeoutError:
+                    logger.warning("Gemini attempt %d timed out (45s).", attempt + 1)
+                except Exception as e:
+                    logger.warning("Gemini batch attempt %d failed with error: %s", attempt + 1, e)
+                    if attempt < 2:
+                        await asyncio.sleep(2)
+                    else:
+                        logger.error("Gemini Error: Did not receive an answer after 3 attempts. Last error: %s", e)
+                        answer = ""
+
+            if answer:
+                await human_delay(5, 10)
+                try:
+                    await clientTG.send_message(chat_id, answer, comment_to=last_msg_id)
+                    logger.info("Replied in %s to batch (last msg %s)", chat_id, last_msg_id)
+                except Exception as e:
+                    logger.error("Failed to send reply to %s: %s", chat_id, e)
+            else:
+                logger.info("Batch did not generate a reply (empty result or error).")
+        except Exception as e:
+            logger.error("CRITICAL ERROR in process_batch for chat %s: %s", chat_id, e, exc_info=True)
+
 
     @clientTG.on(events.NewMessage())
     async def on_post(ev):
@@ -96,45 +199,48 @@ async def run():
         if ev.date < start_time:
             return
 
-        # --- Album Handling ---
-        album_id = ev.grouped_id
-        if album_id:
-            if album_id in processed_albums:
-                logger.info("Ignoring duplicate message from album ID: %s", album_id)
-                return
-            processed_albums.add(album_id)
-            logger.info("Processing new album with ID: %s", album_id)
+        # Handle albums (deduplication of events)
+        # Note: With batching, album events will naturally fall into the same batch window.
+        # But we still want to avoid processing the same grouped_id multiple times as separate triggers if possible,
+        # OR we just let them pile into the batch.
+        # Actually, adding them all to the batch is better because they might have different images/text.
+        # But Telethon sends separate events for each item in an album.
 
-        try:
-            if ev.is_channel and ev.chat.id in tracked_ids:
-                logger.info("Matched post in channel: %s. Text: \"%s...\"", getattr(ev.chat, 'title', None), (ev.text or '')[:50])
-                answer = ""
+        # If we buffer, we don't strictly need 'processed_albums' for deduplication anymore,
+        # essentially the buffer ACTS as the album grouper + debounce.
+
+        if ev.is_channel and ev.chat.id in tracked_ids:
+            logger.debug("Received post in channel %s: %s", ev.chat_id, ev.id)
+
+            # Extract data
+            try:
+                image_data, image_mime = await extract_image_from_message(ev.message)
+            except Exception as e:
+                logger.warning("Image extraction failed: %s", e)
+                image_data, image_mime = None, None
+
+            msg_data = {
+                'id': ev.id,
+                'text': ev.text or "",
+                'image_data': image_data,
+                'image_mime': image_mime
+            }
+
+            # Add to buffer
+            msg_buffer.add_message(ev.chat_id, msg_data)
+
+            # Schedule execution
+            # Create a task that waits BATCH_DELAY then runs process_batch
+            # If a task already exists for this channel, cancel it (debounce)
+            async def delayed_trigger():
                 try:
-                    image_data, image_mime = await extract_image_from_message(ev.message)
-                    if not image_data and not ev.text:
-                        logger.info("No text or image found in this part of the post, skipping reply.")
-                        return
-                    answer = await asyncio.wait_for(
-                        smart_reply(ev.text or "", image_data, image_mime),
-                        timeout=30
-                    )
-                except asyncio.TimeoutError:
-                    logger.warning("Gemini response timed out after 30s. Sending fallback.")
-                    from . import config as cfg
-                    answer = cfg.FALLBACK
+                    await asyncio.sleep(config.BATCH_DELAY)
+                    await process_batch(ev.chat_id)
+                except asyncio.CancelledError:
+                    pass # Timer reset
 
-                if answer:
-                    await human_delay(5, 10)
-                    await clientTG.send_message(ev.chat_id, answer, comment_to=ev.id)
-                    logger.info("Replied in %s to message %s", getattr(ev.chat, 'title', None), ev.id)
-                else:
-                    logger.info("Post did not generate a reply, skipped.")
-        finally:
-            if album_id:
-                await asyncio.sleep(5)
-                if album_id in processed_albums:
-                    processed_albums.remove(album_id)
-                    logger.info("Cleaned up album ID: %s", album_id)
+            task = asyncio.create_task(delayed_trigger())
+            msg_buffer.set_timer(ev.chat_id, task)
 
     logger.info("Userbot ONLINE…")
     await clientTG.run_until_disconnected()

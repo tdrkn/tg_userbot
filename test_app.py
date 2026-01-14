@@ -104,10 +104,16 @@ class TestApp(tk.Tk):
         self.after(0, self.update_response_text, "Generating...")
 
         try:
+            # Construct a single-message batch for testing
+            msg_batch = [{
+                'text': post_text_content,
+                'image_data': self.image_data,
+                'image_mime': self.image_mime
+            }]
+
             response = await smart_reply(
-                post_text=post_text_content,
-                image_data=self.image_data,
-                image_mime=self.image_mime
+                message_batch=msg_batch,
+                vibe_context="Тестовый режим."
             )
             if not response:
                 response = FALLBACK

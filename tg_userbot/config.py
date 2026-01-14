@@ -14,6 +14,10 @@ PROMPT_IMAGE_ONLY = os.getenv("GEMINI_PROMPT_IMAGE") or os.getenv("PROMPT_IMAGE_
 PROMPT_REPLY_TPL = os.getenv("GEMINI_PROMPT_REPLY")
 FALLBACK = os.getenv("TG_REPLY_TEXT", "🤖 ...")
 
+# Context and Delays
+BATCH_DELAY = int(os.getenv("BATCH_DELAY", "120"))  # 2 minutes default
+VIBE_FILE = os.getenv("VIBE_FILE", "channel_vibes.json")
+
 TG_API_ID = os.getenv("TG_API_ID")
 TG_API_HASH = os.getenv("TG_API_HASH")
 TG_SESSION = os.getenv("TG_SESSION")

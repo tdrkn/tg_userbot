@@ -64,6 +64,12 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# TG Userbot specific
+.env
+channel_vibes.json
+bot.log
+session.session
+
 # Flask stuff:
 instance/
 .webassets-cache
